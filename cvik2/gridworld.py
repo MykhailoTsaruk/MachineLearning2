@@ -12,7 +12,7 @@ class Gridworld:
             goal_x = np.random.randint(1, self.width - 1)
             goal_y = np.random.randint(1, self.height - 1)
             self.goal_position = (goal_y, goal_x)
-            if self.goal_position in self.traps:
+            if self.goal_position in self.traps and self.goal_position in self.traps:
                 self.goal_position = None
 
         self.agent_position = None
@@ -167,10 +167,8 @@ class Gridworld:
 if __name__ == '__main__':
     height = 6
     width = 11
-    y_goal = np.random.randint(1, height)
-    x_goal = np.random.randint(1, width)
 
-    world = Gridworld(height=height, width=width, goal_position=(y_goal, x_goal))
+    world = Gridworld(height=height, width=width)
     state = world.reset()
     done = False
     # points - minimalny pocet krokov do ciele
