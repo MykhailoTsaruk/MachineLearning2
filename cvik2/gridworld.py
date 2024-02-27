@@ -1,11 +1,12 @@
 import numpy as np
 
 class Gridworld:
-    def __init__(self, height, width, goal_position=None, traps=[]):
+    def __init__(self, height, width, goal_position=None, traps=[], walls=[]):
         self.height = height
         self.width = width
         self.goal_position = goal_position
         self.traps = traps
+        self.walls = walls
 
         while self.goal_position is None:
             goal_x = np.random.randint(1, self.width - 1)
@@ -15,7 +16,6 @@ class Gridworld:
                 self.goal_position = None
 
         self.agent_position = None
-        self.walls = []
 
     def generate_traps(self):
         height = self.height - 2
@@ -61,6 +61,11 @@ class Gridworld:
         return self.walls
 
     def reset(self):
+        self.walls = []
+        self.traps = []
+
+        walls = world.generate_wall()
+        traps = world.generate_traps()
 
         while self.agent_position is None:
             goal_x = np.random.randint(1, self.width - 1)
@@ -82,7 +87,6 @@ class Gridworld:
 
         return -1
 
-
     def is_done(self):
         if self.agent_position == self.goal_position:
             return True
@@ -93,28 +97,40 @@ class Gridworld:
 
     def step(self, action):
         agent_y, agent_x = self.agent_position
+        is_wall = False
+
         if action == 0:
             agent_y -= 1
+
         elif action == 1:
             agent_x += 1
+
         elif action == 2:
             agent_y += 1
+
         elif action == 3:
             agent_x -= 1
+
+        elif action == 5:
+            reward = 0
+            done = self.is_done()
+            truncated = True
+            info = dict()
+            return self.agent_position, reward, done, truncated, info, is_wall
+
         else:
             raise ValueError("Unknown action" + str(action))
 
-        isWall = False
-        if agent_x != 0 and agent_x != self.width - 1 and agent_y != 0 and agent_y != self.height - 1 and (agent_x, agent_y) not in self.walls:
+        if agent_x != 0 and agent_x != self.width - 1 and agent_y != 0 and agent_y != self.height - 1 and (agent_y, agent_x) not in self.walls:
             self.agent_position = (agent_y, agent_x)
         else:
-            isWall = True
+            is_wall = True
 
         reward = self.calculate_reward(self.agent_position)
         done = self.is_done()
         truncated = False
         info = dict()
-        return self.agent_position, reward, done, truncated, info, isWall
+        return self.agent_position, reward, done, truncated, info, is_wall
 
 
     def render(self, agent_state):
@@ -140,26 +156,42 @@ class Gridworld:
         y_agent, x_agent = agent_state
         field[y_agent][x_agent] = '.'
 
-        for _ in range(0, height):
+        for i in range(0, height):
             a = str()
-            for i in range(0, width):
-                a += field[_][i]
+            for j in range(0, width):
+                a += field[i][j]
             print(a)
         print()
 
 
 if __name__ == '__main__':
-    world = Gridworld(5, 9, goal_position=(3, 3))
-    walls = world.generate_wall()
-    traps = world.generate_traps()
+    height = 6
+    width = 11
+    y_goal = np.random.randint(1, height)
+    x_goal = np.random.randint(1, width)
+
+    world = Gridworld(height=height, width=width, goal_position=(y_goal, x_goal))
     state = world.reset()
     done = False
-    points = np.abs(world.goal_position[0] - state[0]) + np.abs(world.goal_position[1] - state[1])
+    # points - minimalny pocet krokov do ciele
+    points = np.abs(world.goal_position[0] - state[0]) + np.abs(world.goal_position[1] - state[1])  # Manhattan distance
     print('Distance to goal: {}'.format(points))
     while not done:
         world.render(state)
         action = np.random.randint(0, 4)
-        new_state, reward, done, truncate, info, iswall = world.step(action)
+        if points <= -5:
+            action = 5
+        new_state, reward, done, truncate, info, is_wall = world.step(action)
+
+        if truncate:
+            print("RESET!\n")
+            state = world.reset()
+            done = False
+            # points = minimalny pocet krokov do ciele
+            points = np.abs(world.goal_position[0] - state[0]) + np.abs(world.goal_position[1] - state[1])
+            print('Distance to goal: {}'.format(points))
+            continue
+
         direction = str()
         match action:
             case 0:
@@ -175,7 +207,7 @@ if __name__ == '__main__':
                 direction = 'W'
 
         print("{} - {} -> {}; reward {}; score {}; done {}".format(state, direction, new_state, reward, (points + reward), done))
-        if iswall:
+        if is_wall:
             print("Wall!")
         state = new_state
         points += reward
