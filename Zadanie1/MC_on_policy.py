@@ -2,12 +2,12 @@ import gymnasium as gym
 import numpy as np
 from matplotlib import pyplot as plt
 
-PRELOAD = False
+PRELOAD = True
 
-# env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
-env = gym.make('Pendulum-v1', max_episode_steps=600)
+env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
+# env = gym.make('Pendulum-v1', max_episode_steps=600)
 
-episodes = 15000
+episodes = 2000
 discount_rate = 0.95
 
 if not PRELOAD:
@@ -15,9 +15,9 @@ if not PRELOAD:
     epsilon_min = 0.1
     epsilon_decay = 0.99999
 else:
-    epsilon = 0.1
-    epsilon_min = 0.01
-    epsilon_decay = 0.99999
+    epsilon = 0.0
+    epsilon_min = 0.1
+    epsilon_decay = 0.999
 
 total_reward = 0
 
@@ -33,7 +33,7 @@ action_space = np.linspace(-2, 2, num=action_space_size)
 observation_space = [np.linspace(-np.pi, np.pi, num=observation_space_size[0]),
                      np.linspace(-8.0, 8.0, num=observation_space_size[1])]
 if not PRELOAD:
-    q_table = np.random.uniform(low=-1, high=-0, size=(observation_space_size + [action_space_size]))
+    q_table = np.random.uniform(low=-1, high=1, size=(observation_space_size + [action_space_size]))
     # q_table = np.zeros(observation_space_size + [action_space_size])
     returns_table = np.zeros(observation_space_size + [action_space_size])
     returns_table_count = np.zeros(observation_space_size + [action_space_size])
