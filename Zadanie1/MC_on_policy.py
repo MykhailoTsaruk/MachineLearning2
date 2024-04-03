@@ -7,7 +7,7 @@ PRELOAD = True
 env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
 # env = gym.make('Pendulum-v1', max_episode_steps=600)
 
-episodes = 300000
+episodes = 150000
 discount_rate = 0.95
 
 if not PRELOAD:
@@ -33,8 +33,8 @@ action_space = np.linspace(-2, 2, num=action_space_size)
 observation_space = [np.linspace(-np.pi, np.pi, num=observation_space_size[0]),
                      np.linspace(-8.0, 8.0, num=observation_space_size[1])]
 if not PRELOAD:
-    # q_table = np.random.uniform(low=-2, high=-0, size=(observation_space_size + [action_space_size]))
-    q_table = np.zeros(observation_space_size + [action_space_size])
+    q_table = np.random.uniform(low=-1, high=1, size=(observation_space_size + [action_space_size]))
+    # q_table = np.zeros(observation_space_size + [action_space_size])
     returns_table = np.zeros(observation_space_size + [action_space_size])
     returns_table_count = np.zeros(observation_space_size + [action_space_size])
 else:
@@ -80,7 +80,7 @@ for episode in range(1, episodes+1):
         index_state, index_velocity = get_indexes(state)
         new_index_state, new_index_velocity = get_indexes(observation)
 
-        episode_history.append((index_state, action, reward))
+        episode_history.append((index_state, index_velocity, action, reward))
 
         if epsilon > epsilon_min:
             epsilon *= epsilon_decay
@@ -90,23 +90,27 @@ for episode in range(1, episodes+1):
             break
 
     G = 0
-    for new_index_state, action, reward in reversed(episode_history):
+    for new_index_state, new_index_velocity, action, reward in reversed(episode_history):
         G = discount_rate * G + reward
         # If the state-action pair is detected for the first time in this episode, we update the Q-value.
-        if not (index_state, index_velocity, action) in episode_history[:-1]:
-            returns_table[index_state, index_velocity, action] += G
-            returns_table_count[index_state, index_velocity, action] += 1
-            q_table[index_state, index_velocity, action] = returns_table[index_state, index_velocity, action] / returns_table_count[index_state, index_velocity, action]
+        if (new_index_state, new_index_velocity, action) not in episode_history:
+            returns_table[new_index_state, new_index_velocity, action] += G
+            returns_table_count[new_index_state, new_index_velocity, action] += 1
+            q_table[new_index_state, new_index_velocity, action] = \
+                (returns_table[new_index_state, new_index_velocity, action] /
+                 returns_table_count[new_index_state, new_index_velocity, action])
 
     if episode % 1000 == 0:
         print("Episode: {}".format(episode))
-        print("Total reward = {}".format(total_reward))
-        print("Average reward = {}".format(total_reward/episode))
+        # print("Total reward = {}".format(total_reward))
+        print("Average reward = {}\n".format(total_reward/episode))
 
-# plt.plot(total_reward_for_episode)
-# plt.xlabel("Episode")
-# plt.ylabel("Reward")
-# plt.show()
+    total_reward_for_episode.append(episode_reward)
+
+plt.plot(total_reward_for_episode)
+plt.xlabel("Episode")
+plt.ylabel("Reward")
+plt.show()
 
 returns_tables = [returns_table, returns_table_count]
 np.save("D:/Programming/MachineLearning2/Zadanie1/MC_q_table_pendulum", q_table)
