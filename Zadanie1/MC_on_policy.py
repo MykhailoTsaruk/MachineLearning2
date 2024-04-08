@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 from matplotlib import pyplot as plt
 
-PRELOAD = False
+PRELOAD = True
 
 # env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
 env = gym.make('Pendulum-v1', max_episode_steps=600)
@@ -13,7 +13,7 @@ discount_rate = 0.95
 if not PRELOAD:
     epsilon = 1.0
     epsilon_min = 0.1
-    epsilon_decay = 0.999999
+    epsilon_decay = 0.9999999
 else:
     epsilon = 0.0
     epsilon_min = 0.1
@@ -33,7 +33,7 @@ action_space = np.linspace(-2, 2, num=action_space_size)
 observation_space = [np.linspace(-np.pi, np.pi, num=observation_space_size[0]),
                      np.linspace(-8.0, 8.0, num=observation_space_size[1])]
 if not PRELOAD:
-    q_table = np.random.uniform(low=-1, high=0, size=(observation_space_size + [action_space_size]))
+    q_table = np.random.uniform(low=-1, high=1, size=(observation_space_size + [action_space_size]))
     # q_table = np.zeros(observation_space_size + [action_space_size])
     returns_table = np.zeros(observation_space_size + [action_space_size])
     returns_table_count = np.zeros(observation_space_size + [action_space_size])
@@ -99,25 +99,27 @@ for episode in range(1, count_of_episodes+1):
 
     G = 0
     episodes = [(a, b) for (a, b, c) in episode_history]
-    for i in reversed(range(1, len(episode_history))):
-        reward = episode_history[i][-1]
+    for i in reversed(range(0, len(episode_history))):
+        # reward = episode_history[i][-1]
+
+        this_episode = episode_history[i]
+        indexes, action, reward = this_episode
         G = discount_rate * G + reward
 
-        this_episode = episode_history[i-1]
-        indexes, action, reward = this_episode
         if (indexes, action) not in episode_history[:-1]:
-            returns_table[index_state, index_velocity, action] += G
-            returns_table_count[index_state, index_velocity, action] += 1
-            q_table[index_state, index_velocity, action] = \
-                returns_table[index_state, index_velocity, action] /\
-                returns_table_count[index_state, index_velocity, action]
+            # index_state, index_velocity = indexes
+            returns_table[indexes[0], indexes[1], action] += G
+            returns_table_count[indexes[0], indexes[1], action] += 1
+            q_table[indexes[0], indexes[1], action] = \
+                returns_table[indexes[0], indexes[1], action] /\
+                returns_table_count[indexes[0], indexes[1], action]
 
-            best_action_index = np.argmax(q_table[index_state, index_velocity])
+            best_action_index = np.argmax(q_table[indexes[0], indexes[1]])
             for a in range(action_space_size):
                 if a == best_action_index:
-                    policy[index_state, index_velocity, a] = 1 - epsilon + (epsilon / action_space_size)
+                    policy[indexes[0], indexes[1], a] = 1 - epsilon + (epsilon / action_space_size)
                 else:
-                    policy[index_state, index_velocity, a] = epsilon / action_space_size
+                    policy[indexes[0], indexes[1], a] = epsilon / action_space_size
 
     if episode % 1000 == 0:
         print("Episode: {}".format(episode))
