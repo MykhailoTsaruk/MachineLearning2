@@ -4,20 +4,20 @@ from matplotlib import pyplot as plt
 
 PRELOAD = True
 
-env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
-# env = gym.make('Pendulum-v1', max_episode_steps=600)
+# env = gym.make('Pendulum-v1', render_mode="human", max_episode_steps=600); env.metadata['render_fps'] = 60
+env = gym.make('Pendulum-v1', max_episode_steps=600)
 
-episodes = 2000
+count_of_episodes = 500000
 discount_rate = 0.95
 
 if not PRELOAD:
     epsilon = 1.0
     epsilon_min = 0.1
-    epsilon_decay = 0.99999
+    epsilon_decay = 0.9999999
 else:
     epsilon = 0.0
     epsilon_min = 0.1
-    epsilon_decay = 0.999
+    epsilon_decay = 0.99999
 
 total_reward = 0
 
@@ -25,7 +25,7 @@ action_space_size = 41
 """ count of action [-2 : 2] with 0.1 step, 0->19 = [-2 : -0.1], 20 = 0, 21->40 = [0.1 : 2] """
 observation_space_size = [63, 161]
 """
-First is count of pendulum state [-pi : pi] with 0.1 step, 0->31 = [-pi : -pi/31], 32 = 0, 33->62 = [pi/32 : pi]
+First is count of pendulum state [-pi : pi] with 0.1 step, 0->31 = [-pi : -pi/32], 32 = 0, 33->62 = [pi/32 : pi]
 Second is count of pendulum angular velocity [-8 : 8] with 0.1 step, 0->79 = [-8 : -0.1], 80 = 0, 81->160 = [0.1 : 8]
 """
 
@@ -37,28 +37,35 @@ if not PRELOAD:
     # q_table = np.zeros(observation_space_size + [action_space_size])
     returns_table = np.zeros(observation_space_size + [action_space_size])
     returns_table_count = np.zeros(observation_space_size + [action_space_size])
+    policy = np.ones((observation_space_size + [action_space_size])) / action_space_size
 else:
     q_table = np.load("D:/Programming/MachineLearning2/Zadanie1/MC_q_table_pendulum.npy")
+    policy = np.load("D:/Programming/MachineLearning2/Zadanie1/policy_table.npy")
     returns_tables = np.load("D:/Programming/MachineLearning2/Zadanie1/returns_tables.npy")
     returns_table = returns_tables[0]
     returns_table_count = returns_tables[1]
 
-def get_discrete_action(state):
-    theta = np.arctan2(state[0], state[1])
-    index_state = np.digitize(theta, observation_space[0]) - 1
-    index_velocity = np.digitize(state[2], observation_space[1]) - 1
-    action = q_table[index_state, index_velocity]
-    return action
+# def get_discrete_action(state):
+#     theta = np.arctan2(state[0], state[1])
+#     index_state = np.digitize(theta, observation_space[0]) - 1
+#     index_velocity = np.digitize(state[2], observation_space[1]) - 1
+#     action = q_table[index_state, index_velocity]
+#     return action
 
 def get_indexes(state):
     theta = np.arctan2(state[0], state[1])
     index_state = np.digitize(theta, observation_space[0]) - 1
     index_velocity = np.digitize(state[2], observation_space[1]) - 1
-    return [index_state, index_velocity]
+    return index_state, index_velocity
+
+def choose_action(index_state, index_velocity):
+    action_probabilities = policy[index_state, index_velocity]
+    action = np.random.choice(np.arange(action_space_size), p=action_probabilities)
+    return action
 
 total_reward_for_episode = list()
 
-for episode in range(1, episodes+1):
+for episode in range(1, count_of_episodes+1):
     state = env.reset()
     state = state[0]
     episode_history = list()
@@ -66,8 +73,11 @@ for episode in range(1, episodes+1):
     episode_reward = 0
 
     while not done:
+        index_state, index_velocity = get_indexes(state)
+
         if np.random.random() > epsilon:
-            action = np.argmax(get_discrete_action(state))
+            # action = np.argmax(get_discrete_action(state))
+            action = choose_action(index_state, index_velocity)
         else:
             action = np.random.randint(0, action_space_size)
 
@@ -77,33 +87,49 @@ for episode in range(1, episodes+1):
         total_reward += reward
         episode_reward += reward
 
-        index_state, index_velocity = get_indexes(state)
-        new_index_state, new_index_velocity = get_indexes(observation)
+        # new_index_state, new_index_velocity = get_indexes(observation)
 
-        episode_history.append((index_state, index_velocity, action, reward))
+        episode_history.append(((index_state, index_velocity), action, reward))
 
         if epsilon > epsilon_min:
             epsilon *= epsilon_decay
 
         if truncated:
-            state = env.reset()
             break
 
     G = 0
-    for new_index_state, new_index_velocity, action, reward in reversed(episode_history):
-        G = discount_rate * G + reward
-        # If the state-action pair is detected for the first time in this episode, we update the Q-value.
-        if (new_index_state, new_index_velocity, action) not in episode_history:
-            returns_table[new_index_state, new_index_velocity, action] += G
-            returns_table_count[new_index_state, new_index_velocity, action] += 1
-            q_table[new_index_state, new_index_velocity, action] = \
-                (returns_table[new_index_state, new_index_velocity, action] /
-                 returns_table_count[new_index_state, new_index_velocity, action])
+    episodes = [(a, b) for (a, b, c) in episode_history]
+    for i in reversed(range(0, len(episode_history))):
+        # reward = episode_history[i][-1]
 
-    if episode % 500 == 0:
+        this_episode = episode_history[i]
+        indexes, action, reward = this_episode
+        G = discount_rate * G + reward
+
+        if (indexes, action) not in episode_history[:-1]:
+            # index_state, index_velocity = indexes
+            returns_table[indexes[0], indexes[1], action] += G
+            returns_table_count[indexes[0], indexes[1], action] += 1
+            q_table[indexes[0], indexes[1], action] = \
+                returns_table[indexes[0], indexes[1], action] /\
+                returns_table_count[indexes[0], indexes[1], action]
+
+            best_action_index = np.argmax(q_table[indexes[0], indexes[1]])
+            for a in range(action_space_size):
+                if a == best_action_index:
+                    policy[indexes[0], indexes[1], a] = 1 - epsilon + (epsilon / action_space_size)
+                else:
+                    policy[indexes[0], indexes[1], a] = epsilon / action_space_size
+
+    if episode % 1000 == 0:
         print("Episode: {}".format(episode))
         # print("Total reward = {}".format(total_reward))
         print("Average reward = {}\n".format(total_reward/episode))
+
+        returns_tables = [returns_table, returns_table_count]
+        np.save("D:/Programming/MachineLearning2/Zadanie1/MC_q_table_pendulum", q_table)
+        np.save("D:/Programming/MachineLearning2/Zadanie1/returns_tables", returns_tables)
+        np.save("D:/Programming/MachineLearning2/Zadanie1/policy_table", policy)
 
     total_reward_for_episode.append(episode_reward)
 
@@ -115,3 +141,4 @@ plt.show()
 returns_tables = [returns_table, returns_table_count]
 np.save("D:/Programming/MachineLearning2/Zadanie1/MC_q_table_pendulum", q_table)
 np.save("D:/Programming/MachineLearning2/Zadanie1/returns_tables", returns_tables)
+np.save("D:/Programming/MachineLearning2/Zadanie1/policy_table", policy)
